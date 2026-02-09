@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家庭就餐随机座次表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* 长方形餐桌容器 */
+        .table-area {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 400px;
+            margin: 40px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 桌面主体 */
+        .rectangular-table {
+            width: 240px;
+            height: 320px;
+            background: linear-gradient(135deg, #8b4513, #a0522d);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2), inset 0 0 20px rgba(0,0,0,0.3);
+            border: 4px solid #5d2e0a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* 座位基础样式 */
+        .seat {
+            position: absolute;
+            width: 80px;
+            height: 60px;
+            background: white;
+            border: 2px solid #8b4513;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-size: 0.9rem;
+        }
+
+        /* 主位 (钱君睦) */
+        .seat-main {
+            top: -75px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fef3c7;
+            border-color: #d97706;
+            width: 100px;
+            height: 70px;
+        }
+
+        /* 侧边座位 */
+        .seat-left-1 { left: -95px; top: 50px; }
+        .seat-left-2 { left: -95px; bottom: 50px; }
+        .seat-right-1 { right: -95px; top: 50px; }
+        .seat-right-2 { right: -95px; bottom: 50px; }
+
+        /* 右上角悬浮倒计时 */
+        #countdownOverlay {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            background: rgba(217, 119, 6, 0.9);
+            z-index: 100;
+            border-radius: 50%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 3px solid white;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        #timerCircle {
+            font-size: 2.5rem;
+            color: white;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .shuffling {
+            animation: pulse 0.15s infinite;
+            background-color: #fffbeb;
+            border-color: #fbbf24;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <!-- 右上角悬浮倒计时 -->
+    <div id="countdownOverlay">
+        <div id="timerCircle">5</div>
+        <div class="text-white text-[10px] font-bold">READY</div>
+    </div>
+
+    <!-- 隐藏的音频元素 -->
+    <audio id="tickSound" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="successSound" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="max-w-xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden mt-6">
+        <div class="bg-amber-700 p-6 text-white text-center">
+            <h1 class="text-2xl font-bold tracking-wider">🍴 钱家温馨餐桌</h1>
+            <p class="text-amber-100 text-sm mt-1">君睦宝宝专属主位 · 随机座次系统</p>
+        </div>
+
+        <div class="p-6">
+            <!-- 输入区域 -->
+            <div class="space-y-4 mb-8">
+                <p class="text-gray-600 text-sm font-bold border-l-4 border-amber-600 pl-2">输入今日用餐的4位成员：</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="p1" placeholder="成员 1" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition">
+                    <input type="text" id="p2" placeholder="成员 2" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition">
+                    <input type="text" id="p3" placeholder="成员 3" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition">
+                    <input type="text" id="p4" placeholder="成员 4" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition">
+                </div>
+                <button onclick="startCountdown()" id="drawBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95 text-lg">
+                    ✨ 开启5秒倒计时
+                </button>
+            </div>
+
+            <!-- 餐桌视图 -->
+            <div class="table-area">
+                <div class="rectangular-table">
+                    <span class="text-amber-200 font-bold opacity-30 text-xl tracking-widest uppercase">Family</span>
+                    
+                    <!-- 主位 -->
+                    <div class="seat seat-main">
+                        <span class="text-lg">👶</span>
+                        <span class="text-amber-800">钱君睦</span>
+                    </div>
+
+                    <!-- 随机座位 -->
+                    <div class="seat seat-left-1" id="seat0">?</div>
+                    <div class="seat seat-left-2" id="seat1">?</div>
+                    <div class="seat seat-right-1" id="seat2">?</div>
+                    <div class="seat seat-right-2" id="seat3">?</div>
+                </div>
+            </div>
+
+            <div id="statusMsg" class="text-center text-sm text-gray-400 mt-6 italic">
+                输入名字后开启仪式感用餐...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tickSound = document.getElementById('tickSound');
+        const successSound = document.getElementById('successSound');
+        const overlay = document.getElementById('countdownOverlay');
+        const timerText = document.getElementById('timerCircle');
+
+        function startCountdown() {
+            const inputs = [
+                document.getElementById('p1').value.trim(),
+                document.getElementById('p2').value.trim(),
+                document.getElementById('p3').value.trim(),
+                document.getElementById('p4').value.trim()
+            ];
+
+            if (inputs.some(name => name === "")) {
+                showMsg("⚠️ 请先填好4位成员的名字哦！", "text-red-500");
+                return;
+            }
+
+            // 重置状态
+            const btn = document.getElementById('drawBtn');
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // 显示右上角倒计时
+            overlay.style.display = 'flex';
+            let timeLeft = 5;
+            timerText.innerText = timeLeft;
+            
+            tickSound.currentTime = 0;
+            tickSound.play();
+
+            const timer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    timerText.innerText = timeLeft;
+                    tickSound.currentTime = 0;
+                    tickSound.play();
+                } else {
+                    clearInterval(timer);
+                    overlay.style.display = 'none';
+                    executeDraw(inputs);
+                }
+            }, 1000);
+        }
+
+        function executeDraw(inputs) {
+            const seats = [
+                document.getElementById('seat0'),
+                document.getElementById('seat1'),
+                document.getElementById('seat2'),
+                document.getElementById('seat3')
+            ];
+
+            let counter = 0;
+            const shuffleInterval = setInterval(() => {
+                seats.forEach(seat => {
+                    seat.innerText = inputs[Math.floor(Math.random() * inputs.length)];
+                    seat.classList.add('shuffling');
+                });
+                counter++;
+                if (counter > 12) {
+                    clearInterval(shuffleInterval);
+                    finalize(inputs, seats);
+                }
+            }, 100);
+        }
+
+        function finalize(names, seats) {
+            const shuffled = [...names].sort(() => Math.random() - 0.5);
+            successSound.play();
+
+            seats.forEach((seat, index) => {
+                seat.classList.remove('shuffling');
+                seat.innerText = shuffled[index];
+                seat.classList.add('bg-amber-50', 'border-amber-500', 'text-amber-900', 'scale-110');
+                
+                setTimeout(() => {
+                    seat.classList.remove('scale-110');
+                }, 500);
+            });
+
+            const btn = document.getElementById('drawBtn');
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            showMsg("🎉 安排就绪！大家入座用餐吧！", "text-amber-600 font-bold");
+        }
+
+        function showMsg(text, colorClass) {
+            const msg = document.getElementById('statusMsg');
+            msg.innerText = text;
+            msg.className = "text-center text-sm mt-6 italic " + colorClass;
+        }
+
+        window.onload = () => {
+            const saved = JSON.parse(localStorage.getItem('familyNames') || "[]");
+            if (saved.length === 4) {
+                saved.forEach((name, i) => {
+                    document.getElementById(`p${i+1}`).value = name;
+                });
+            }
+        };
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', () => {
+                const names = [
+                    document.getElementById('p1').value,
+                    document.getElementById('p2').value,
+                    document.getElementById('p3').value,
+                    document.getElementById('p4').value
+                ];
+                localStorage.setItem('familyNames', JSON.stringify(names));
+            });
+        });
+    </script>
+</body>
+</html>
